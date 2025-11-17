@@ -8,6 +8,7 @@ export async function GET() {
     });
     return NextResponse.json(players);
   } catch (error) {
+    console.error('Failed to fetch players:', error);
     return NextResponse.json(
       { error: 'Failed to fetch players' },
       { status: 500 }
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(player, { status: 201 });
   } catch (error) {
+    console.error('Failed to create player:', error);
     return NextResponse.json(
       { error: 'Failed to create player' },
       { status: 500 }
