@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Form, Modal } from 'react-bootstrap';
 import Link from 'next/link';
 import { Player } from '../types/player';
-import { initialPlayers } from '../data/players';
 import PlayerCard from '../components/PlayerCard';
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [newPlayer, setNewPlayer] = useState<Partial<Player>>({
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [formData, setFormData] = useState<Partial<Player>>({
     name: '',
     position: '',
     overall: 0,
@@ -23,43 +24,31 @@ export default function PlayersPage() {
   });
 
   useEffect(() => {
-    const storedPlayers = localStorage.getItem('efootball_players');
-    if (storedPlayers) {
-      setPlayers(JSON.parse(storedPlayers));
-    } else {
-      setPlayers(initialPlayers);
-      localStorage.setItem('efootball_players', JSON.stringify(initialPlayers));
-    }
+    fetchPlayers();
   }, []);
 
-  useEffect(() => {
-    if (players.length > 0) {
-      localStorage.setItem('efootball_players', JSON.stringify(players));
+  const fetchPlayers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/players');
+      if (response.ok) {
+        const data = await response.json();
+        setPlayers(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch players:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [players]);
+  };
 
-  const handleAddPlayer = () => {
-    if (
-      newPlayer.name &&
-      newPlayer.position &&
-      newPlayer.overall &&
-      newPlayer.nationality &&
-      newPlayer.club
-    ) {
-      const player: Player = {
-        id: Date.now().toString(),
-        name: newPlayer.name,
-        position: newPlayer.position,
-        overall: newPlayer.overall || 0,
-        nationality: newPlayer.nationality,
-        club: newPlayer.club,
-        age: newPlayer.age || 0,
-        height: newPlayer.height || '',
-        weight: newPlayer.weight || '',
-        description: newPlayer.description || '',
-      };
-      setPlayers([...players, player]);
-      setNewPlayer({
+  const handleOpenModal = (player?: Player) => {
+    if (player) {
+      setEditingPlayer(player);
+      setFormData(player);
+    } else {
+      setEditingPlayer(null);
+      setFormData({
         name: '',
         position: '',
         overall: 0,
@@ -70,14 +59,79 @@ export default function PlayersPage() {
         weight: '',
         description: '',
       });
-      setShowModal(false);
+    }
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingPlayer(null);
+    setFormData({
+      name: '',
+      position: '',
+      overall: 0,
+      nationality: '',
+      club: '',
+      age: 0,
+      height: '',
+      weight: '',
+      description: '',
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (
+      !formData.name ||
+      !formData.position ||
+      !formData.overall ||
+      !formData.nationality ||
+      !formData.club
+    ) {
+      alert('Harap isi semua field yang wajib');
+      return;
+    }
+
+    try {
+      if (editingPlayer) {
+        const response = await fetch(`/api/players/${editingPlayer.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok) {
+          fetchPlayers();
+          handleCloseModal();
+        }
+      } else {
+        const response = await fetch('/api/players', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok) {
+          fetchPlayers();
+          handleCloseModal();
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save player:', error);
+      alert('Gagal menyimpan data');
     }
   };
 
-  const handleDeletePlayer = (id: string) => {
+  const handleDeletePlayer = async (id: string) => {
     if (confirm('Apakah Anda yakin ingin menghapus pemain ini?')) {
-      const updatedPlayers = players.filter((player) => player.id !== id);
-      setPlayers(updatedPlayers);
+      try {
+        const response = await fetch(`/api/players/${id}`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          fetchPlayers();
+        }
+      } catch (error) {
+        console.error('Failed to delete player:', error);
+        alert('Gagal menghapus data');
+      }
     }
   };
 
@@ -100,7 +154,7 @@ export default function PlayersPage() {
       <Container className="py-5 position-relative" style={{ zIndex: 1 }}>
         <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
           <div className="mb-3 mb-md-0">
-            <h1 
+            <h1
               className="display-4 fw-bold mb-2 text-white"
               style={{
                 background: 'linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%)',
@@ -117,8 +171,11 @@ export default function PlayersPage() {
             <Link href="/" className="btn btn-outline-light me-2">
               Home
             </Link>
+            <Link href="/external-players" className="btn btn-outline-light me-2">
+              Mencari Pemain
+            </Link>
             <Button
-              onClick={() => setShowModal(true)}
+              onClick={() => handleOpenModal()}
               style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: 'none',
@@ -129,175 +186,190 @@ export default function PlayersPage() {
           </div>
         </div>
 
-      <Row className="g-4">
-        {players.map((player) => (
-          <Col key={player.id} xs={12} sm={6} md={4} lg={3}>
-            <PlayerCard player={player} onDelete={handleDeletePlayer} />
-          </Col>
-        ))}
-      </Row>
+        {loading ? (
+          <div className="text-center py-5">
+            <div className="spinner-border text-light" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <Row className="g-4">
+              {players.map((player) => (
+                <Col key={player.id} xs={12} sm={6} md={4} lg={3}>
+                  <PlayerCard
+                    player={player}
+                    onDelete={handleDeletePlayer}
+                    onEdit={() => handleOpenModal(player)}
+                  />
+                </Col>
+              ))}
+            </Row>
 
-      {players.length === 0 && (
-        <Card
-          className="text-center py-5 border-0"
-          style={{
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-          }}
-        >
-          <Card.Body>
-            <h5 className="text-muted">Belum ada pemain dalam koleksi</h5>
+            {players.length === 0 && (
+              <Card
+                className="text-center py-5 border-0"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                }}
+              >
+                <Card.Body>
+                  <h5 className="text-muted">Belum ada pemain dalam koleksi</h5>
+                  <Button
+                    onClick={() => handleOpenModal()}
+                    className="mt-3"
+                    style={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      border: 'none',
+                    }}
+                  >
+                    Tambah Pemain Pertama
+                  </Button>
+                </Card.Body>
+              </Card>
+            )}
+          </>
+        )}
+
+        <Modal show={showModal} onHide={handleCloseModal} size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {editingPlayer ? 'Edit Pemain' : 'Tambah Pemain Baru'}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Nama Pemain</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Masukkan nama pemain"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Posisi</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={formData.position}
+                      onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                      placeholder="CF, CMF, CB, dll"
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Overall Rating</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="0"
+                      max="99"
+                      value={formData.overall || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, overall: parseInt(e.target.value) || 0 })
+                      }
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Usia</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="0"
+                      value={formData.age || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, age: parseInt(e.target.value) || 0 })
+                      }
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Kebangsaan</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={formData.nationality}
+                      onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                      placeholder="Negara"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Klub</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={formData.club}
+                      onChange={(e) => setFormData({ ...formData, club: e.target.value })}
+                      placeholder="Nama klub"
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Tinggi</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={formData.height}
+                      onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                      placeholder="180 cm"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Berat</Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={formData.weight}
+                      onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                      placeholder="75 kg"
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+              <Form.Group className="mb-3">
+                <Form.Label>Deskripsi</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Deskripsi pemain"
+                />
+              </Form.Group>
+            </Form>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>
+              Batal
+            </Button>
             <Button
-              onClick={() => setShowModal(true)}
-              className="mt-3"
+              onClick={handleSubmit}
               style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: 'none',
               }}
             >
-              Tambah Pemain Pertama
+              {editingPlayer ? 'Update' : 'Tambah'} Pemain
             </Button>
-          </Card.Body>
-        </Card>
-      )}
-
-      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Tambah Pemain Baru</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Nama Pemain</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={newPlayer.name}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, name: e.target.value })}
-                    placeholder="Masukkan nama pemain"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Posisi</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={newPlayer.position}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, position: e.target.value })}
-                    placeholder="CF, CMF, CB, dll"
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Overall Rating</Form.Label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    max="99"
-                    value={newPlayer.overall || ''}
-                    onChange={(e) =>
-                      setNewPlayer({ ...newPlayer, overall: parseInt(e.target.value) || 0 })
-                    }
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Usia</Form.Label>
-                  <Form.Control
-                    type="number"
-                    min="0"
-                    value={newPlayer.age || ''}
-                    onChange={(e) =>
-                      setNewPlayer({ ...newPlayer, age: parseInt(e.target.value) || 0 })
-                    }
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Kebangsaan</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={newPlayer.nationality}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, nationality: e.target.value })}
-                    placeholder="Negara"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Klub</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={newPlayer.club}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, club: e.target.value })}
-                    placeholder="Nama klub"
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Tinggi</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={newPlayer.height}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, height: e.target.value })}
-                    placeholder="180 cm"
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Berat</Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={newPlayer.weight}
-                    onChange={(e) => setNewPlayer({ ...newPlayer, weight: e.target.value })}
-                    placeholder="75 kg"
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Form.Group className="mb-3">
-              <Form.Label>Deskripsi</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={3}
-                value={newPlayer.description}
-                onChange={(e) => setNewPlayer({ ...newPlayer, description: e.target.value })}
-                placeholder="Deskripsi pemain"
-              />
-            </Form.Group>
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>
-            Batal
-          </Button>
-          <Button
-            onClick={handleAddPlayer}
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              border: 'none',
-            }}
-          >
-            Tambah Pemain
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </Container>
+          </Modal.Footer>
+        </Modal>
+      </Container>
     </div>
   );
 }
-

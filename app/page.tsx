@@ -111,6 +111,16 @@ export default function Home() {
                 >
                   Lihat Koleksi Pemain
                 </Link>
+                <Link 
+                  href="/external-players" 
+                  className="btn btn-outline-primary btn-lg px-5 py-3 fw-bold"
+                  style={{
+                    borderRadius: '50px',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                  }}
+                >
+                  Mencari Pemain
+                </Link>
               </div>
             </div>
           </div>
@@ -150,7 +160,7 @@ export default function Home() {
           <div className="col-12 text-center">
             <div className="text-white-50">
               <p className="mb-0" style={{ fontSize: '0.9rem' }}>
-                Front-End Programming - Kuis Project
+                Front-End Programming
               </p>
             </div>
           </div>

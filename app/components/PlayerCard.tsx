@@ -7,9 +7,10 @@ import { Player } from '../types/player';
 interface PlayerCardProps {
   player: Player;
   onDelete: (id: string) => void;
+  onEdit?: (player: Player) => void;
 }
 
-export default function PlayerCard({ player, onDelete }: PlayerCardProps) {
+export default function PlayerCard({ player, onDelete, onEdit }: PlayerCardProps) {
   const getPositionColor = (position: string) => {
     if (position.includes('CF') || position.includes('SS')) return 'danger';
     if (position.includes('AMF') || position.includes('CMF')) return 'warning';
@@ -81,13 +82,26 @@ export default function PlayerCard({ player, onDelete }: PlayerCardProps) {
                 Lihat Detail
               </Button>
             </Link>
-            <Button
-              variant="outline-danger"
-              size="sm"
-              onClick={() => onDelete(player.id)}
-            >
-              Hapus
-            </Button>
+            <div className="d-flex gap-2">
+              {onEdit && (
+                <Button
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={() => onEdit(player)}
+                  className="flex-fill"
+                >
+                  Edit
+                </Button>
+              )}
+              <Button
+                variant="outline-danger"
+                size="sm"
+                onClick={() => onDelete(player.id)}
+                className="flex-fill"
+              >
+                Hapus
+              </Button>
+            </div>
           </div>
         </div>
       </Card.Body>
