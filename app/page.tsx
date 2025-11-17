@@ -113,8 +113,10 @@ export default function Home() {
                 </Link>
                 <Link 
                   href="/external-players" 
-                  className="btn btn-outline-primary btn-lg px-5 py-3 fw-bold"
+                  className="btn btn-primary btn-lg px-5 py-3 fw-bold home-btn"
                   style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    border: 'none',
                     borderRadius: '50px',
                     transition: 'transform 0.2s, box-shadow 0.2s',
                   }}

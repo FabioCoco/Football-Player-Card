@@ -24,9 +24,14 @@ export default function PlayerDetailPage() {
       if (response.ok) {
         const data = await response.json();
         setPlayer(data);
+      } else if (response.status === 404) {
+        setPlayer(null);
+      } else {
+        console.error('Failed to fetch player:', response.statusText);
       }
     } catch (error) {
       console.error('Failed to fetch player:', error);
+      setPlayer(null);
     } finally {
       setLoading(false);
     }

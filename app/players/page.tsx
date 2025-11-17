@@ -127,10 +127,13 @@ export default function PlayersPage() {
         });
         if (response.ok) {
           fetchPlayers();
+        } else {
+          const errorData = await response.json();
+          alert(`Gagal menghapus data: ${errorData.error || 'Unknown error'}`);
         }
       } catch (error) {
         console.error('Failed to delete player:', error);
-        alert('Gagal menghapus data');
+        alert('Gagal menghapus data. Silakan coba lagi.');
       }
     }
   };

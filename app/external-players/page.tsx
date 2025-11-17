@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface ExternalPlayer {
   idPlayer: string;
@@ -16,10 +17,12 @@ interface ExternalPlayer {
 }
 
 export default function ExternalPlayersPage() {
+  const router = useRouter();
   const [players, setPlayers] = useState<ExternalPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [addingPlayers, setAddingPlayers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchPlayers();
@@ -39,6 +42,7 @@ export default function ExternalPlayersPage() {
         setPlayers([]);
       }
     } catch (err) {
+      console.error('Failed to fetch players from API:', err);
       setError('Failed to fetch players from API');
     } finally {
       setLoading(false);
@@ -63,6 +67,7 @@ export default function ExternalPlayersPage() {
         setPlayers([]);
       }
     } catch (err) {
+      console.error('Failed to search players:', err);
       setError('Failed to search players');
     } finally {
       setLoading(false);
@@ -70,7 +75,7 @@ export default function ExternalPlayersPage() {
   };
 
   const calculateAge = (dateString: string) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return 0;
     const birthDate = new Date(dateString);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -79,6 +84,75 @@ export default function ExternalPlayersPage() {
       age--;
     }
     return age;
+  };
+
+  const mapPosition = (position: string): string => {
+    if (!position) return 'CF';
+    const pos = position.toUpperCase();
+    if (pos.includes('FORWARD') || pos.includes('STRIKER')) return 'CF';
+    if (pos.includes('MIDFIELD')) return 'CMF';
+    if (pos.includes('DEFENDER') || pos.includes('DEFENCE')) return 'CB';
+    if (pos.includes('GOALKEEPER') || pos.includes('GOALIE')) return 'GK';
+    if (pos.includes('WINGER')) return 'RWF';
+    return position.substring(0, 3).toUpperCase();
+  };
+
+  const estimateOverall = (age: number): number => {
+    if (age <= 0) return 75;
+    let base = 75;
+    if (age >= 25 && age <= 32) base = 85;
+    else if (age >= 20 && age < 25) base = 80;
+    else if (age > 32) base = 82;
+    else base = 75;
+    return Math.min(99, base + Math.floor(Math.random() * 10));
+  };
+
+  const handleAddToCollection = async (externalPlayer: ExternalPlayer) => {
+    const playerId = externalPlayer.idPlayer;
+    if (addingPlayers.has(playerId)) return;
+
+    try {
+      setAddingPlayers((prev) => new Set(prev).add(playerId));
+      
+      const age = calculateAge(externalPlayer.dateBorn);
+      const position = mapPosition(externalPlayer.strPosition);
+      const overall = estimateOverall(age);
+
+      const playerData = {
+        name: externalPlayer.strPlayer || 'Unknown Player',
+        position: position,
+        overall: overall,
+        nationality: externalPlayer.strNationality || 'Unknown',
+        club: externalPlayer.strTeam || 'Unknown Club',
+        age: age,
+        height: 'N/A',
+        weight: 'N/A',
+        description: externalPlayer.strDescriptionEN || 'Player from external API',
+      };
+
+      const response = await fetch('/api/players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(playerData),
+      });
+
+      if (response.ok) {
+        alert('Pemain berhasil ditambahkan ke koleksi!');
+        router.push('/players');
+      } else {
+        const errorData = await response.json();
+        alert(`Gagal menambahkan pemain: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to add player:', error);
+      alert('Gagal menambahkan pemain ke koleksi');
+    } finally {
+      setAddingPlayers((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(playerId);
+        return newSet;
+      });
+    }
   };
 
   return (
@@ -216,6 +290,26 @@ export default function ExternalPlayersPage() {
                         {player.strDescriptionEN.substring(0, 100)}...
                       </p>
                     )}
+                    <div className="mt-auto pt-3">
+                      <Button
+                        className="w-100"
+                        onClick={() => handleAddToCollection(player)}
+                        disabled={addingPlayers.has(player.idPlayer)}
+                        style={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          border: 'none',
+                        }}
+                      >
+                        {addingPlayers.has(player.idPlayer) ? (
+                          <>
+                            <Spinner animation="border" size="sm" className="me-2" />
+                            Menambahkan...
+                          </>
+                        ) : (
+                          '+ Tambah ke Koleksi'
+                        )}
+                      </Button>
+                    </div>
                   </Card.Body>
                 </Card>
               </Col>
